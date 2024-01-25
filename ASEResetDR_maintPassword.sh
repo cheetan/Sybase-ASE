@@ -16,19 +16,18 @@ if [ "$current_user" != "$desired_user" ]; then
     echo "--> Error: The script must be executed by the user $desired_user" > "${log_file}"
     exit 1
 fi
-echo "--> The script is being executed by the user $current_user" > "${log_file}"
+echo "--> The script is being executed by the user $current_user" >> "${log_file}"
 }
 
-# Function that sets important parameters for the script
+# Function that gets | sets important parameters for the script
 set_parameters(){
 DT=$(date "+%d%m%Y")
 SID=$(printenv SYBASE | awk -F"/" '{print $3}')
 maint_username="${SID}_maint"
 log_file="/sybase/${SID}/saparch_1/OutputDR_maintPasswordReset_${DT}.log"
 repserver_name=$(ps -ef | grep repserver | grep -v grep | awk -F"-S" '{print substr($2, 1, 13)}')
+srs_site_name="$(echo "${repserver_name: -5}" | tr '[:upper:]' '[:lower:]')"
 maint_password=$(get_password "${maint_username}")
-sapsso_password=$(get_password "sapsso")
-sa_srs_password=$(get_password "sa")
 }
 
 # Function used to obtain different passwords from the script caller
@@ -92,7 +91,7 @@ done
 
 # Check if at least one parameter is provided to the script
 if [ "$#" -lt 1 ]; then
-    echo "Usage of the script: $0 param1 [param2 ...]"
+    echo "--> The script must be called with at least 1 argument: $0 param1 [param2 ...]" > "${log_file}"
     exit 1
 fi
 
