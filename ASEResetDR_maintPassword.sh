@@ -30,6 +30,53 @@ srs_site_name="$(echo "${repserver_name: -5}" | tr '[:upper:]' '[:lower:]')"
 maint_password=$(get_password "${maint_username}")
 }
 
+# Function that builds the isql connection strings
+build_isql_connection_string(){
+
+# sa srs isql connection string
+sa_srs_aseuserstorekey="sa_srs_${srs_site_name}"
+ase_sa_srs_key_command="aseuserstore list ${sa_srs_aseuserstorekey}"
+
+if eval "${ase_sa_srs_key_command}" > /dev/null 2>&1; then
+    isql_sa_srs_sql_connection_test_command="isql -k ${sa_srs_aseuserstorekey} -w20000 -J <<EOF
+    CONNECT
+    GO
+    SELECT dsname FROM rs_databases
+    GO
+    exit
+    EOF
+    "
+    if eval "${isql_sa_srs_sql_connection_test_command}" > /dev/null 2>&1; then
+        echo "Connection with aseuserstore key ${sa_srs_aseuserstorekey} is working"
+        sa_srs_isql_case="aseuserstore"
+    fi
+else
+    echo "The aseuserstore key ${sa_srs_aseuserstorekey} is not present. Trying isql connection with user sa directly."
+    sa_srs_password=$(get_password "sa")
+    isql_sa_srs_sql_connection_test_command="isql -X -Usa -P'${sa_srs_password}' -w20000 -J <<EOF
+    CONNECT
+    GO
+    SELECT dsname FROM rs_databases
+    GO
+    exit
+    EOF
+    "
+    if eval "${isql_sa_srs_sql_connection_test_command}" > /dev/null 2>&1; then
+        echo "isql connection with user sa is working"
+        sa_srs_isql_case="isql"
+    fi
+fi
+
+case $sa_srs_isql_case in
+    "aseuserstore" )
+        echo "aseuserstore"
+        ;;
+    "isql" )
+        echo "isql"
+        ;;
+esac
+}
+
 # Function used to obtain different passwords from the script caller
 get_password(){
 username=$1
