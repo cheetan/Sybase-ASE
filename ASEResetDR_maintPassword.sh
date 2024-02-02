@@ -63,7 +63,6 @@ if eval "${sa_srs_key_list_command}" > /dev/null 2>&1; then
     if eval "${aseuserstore_sa_srs_connection_test}" > /dev/null 2>&1; then
         custom_echo
         echo -e "Connection with aseuserstore key ${sa_srs_aseuserstorekey} is working" >> "${log_file}"
-        # sa_srs_isql_case="aseuserstore"
         sa_srs_sql_connection_string="isql -X -k${sa_srs_aseuserstorekey} -w20000 -J -b <<EOF"
     fi
 else
@@ -81,7 +80,6 @@ else
     if eval "${isql_sa_srs_connection_test}" > /dev/null 2>&1; then
         custom_echo
         echo -e "Direct isql connection with user sa in SRS is working" >> "${log_file}"
-        # sa_srs_isql_case="isql"
         sa_srs_sql_connection_string="isql -X -Usa -S${repserver_name} -P${sa_srs_password} -w20000 -J -b <<EOF"
     else
         custom_echo
@@ -89,15 +87,6 @@ else
         exit 1
     fi
 fi
-
-#case $sa_srs_isql_case in
-#    "aseuserstore" )
-#        sa_srs_sql_connection_string="isql -X -k${sa_srs_aseuserstorekey} -w20000 -J -b <<EOF"
-#        ;;
-#    "isql" )
-#        sa_srs_sql_connection_string="isql -X -Usa -S${repserver_name} -w20000 -J -b <<EOF"
-#        ;;
-#esac
 
 # build the sapsso ase isql connection string
 sapsso_ase_aseuserstorekey="sapsso"
@@ -171,6 +160,8 @@ use master
 go
 print 'Resetting the password for user ${maint_username}'
 go
+-- exec..sp_password ${sapsso_password}, ${maint_password} , ${maint_username}
+-- go
 declare @cnt int
 select @cnt=count(*) from master..syslogins where name = '${maint_username}' and status  = 2
 if @cnt > 0
@@ -182,8 +173,6 @@ go
 exit
 EOF
 "
-# exec..sp_password ${sapsso_password}, ${maint_password} , ${maint_username}
-# go
 
 if  ! test_maint_login; then
     # Reset the password of user maint and unlock the user
