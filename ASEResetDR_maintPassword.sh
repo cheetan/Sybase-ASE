@@ -10,7 +10,7 @@
 # Function that defines a custom echo output
 custom_echo(){
     echo -e "\n####################################################\n####################################################\n" >> "${log_file}"
-    echo -e "[$(date +'%Y-%m-%d %H:%M:%S')]\n" >> "${log_file}"
+    echo -ne "[$(date +'%Y-%m-%d %H:%M:%S')]\t" >> "${log_file}"
 }
 
 # Function that checks if the script is executed by the user syb<sid>
@@ -26,7 +26,6 @@ fi
 # Function used to obtain different passwords from the script caller
 get_password(){
 username=$1
-custom_echo
 password=$(systemd-ask-password "Enter the Password for ${username}:")
 echo "${password}"
 }
@@ -51,9 +50,9 @@ sa_srs_key_list_command="aseuserstore list ${sa_srs_aseuserstorekey}"
 
 if eval "${sa_srs_key_list_command}" > /dev/null 2>&1; then
     custom_echo
-    echo -e "Testing the sql connection with aseuserstore key ${sa_srs_aseuserstorekey}\n" >> "${log_file}"
+    echo -e "Testing the sql connection with aseuserstore key ${sa_srs_aseuserstorekey}" >> "${log_file}"
 
-    aseuserstore_sa_srs_connection_test="isql -X -k${sa_srs_aseuserstorekey} -w20000 -J -b -o${log_file} <<EOF
+    aseuserstore_sa_srs_connection_test="isql -X -k${sa_srs_aseuserstorekey} -w20000 -J -b <<EOF
     CONNECT
     GO
     SELECT dsname FROM rs_databases
@@ -62,15 +61,16 @@ if eval "${sa_srs_key_list_command}" > /dev/null 2>&1; then
     EOF
     "
     if eval "${aseuserstore_sa_srs_connection_test}" > /dev/null 2>&1; then
-        echo -e "Connection with aseuserstore key ${sa_srs_aseuserstorekey} is working\n" >> "${log_file}"
+        custom_echo
+        echo -e "Connection with aseuserstore key ${sa_srs_aseuserstorekey} is working" >> "${log_file}"
         # sa_srs_isql_case="aseuserstore"
-        sa_srs_sql_connection_string="isql -X -k${sa_srs_aseuserstorekey} -w20000 -J -b -o${log_file} <<EOF"
+        sa_srs_sql_connection_string="isql -X -k${sa_srs_aseuserstorekey} -w20000 -J -b <<EOF"
     fi
 else
     custom_echo
-    echo -e "The aseuserstore key ${sa_srs_aseuserstorekey} is not present. Trying isql connection with user sa directly\n"
+    echo -e "The aseuserstore key ${sa_srs_aseuserstorekey} is not present. Trying isql connection with user sa directly"
     sa_srs_password=$(get_password "sa")
-    isql_sa_srs_connection_test="isql -X -Usa -S${repserver_name} -P${sa_srs_password} -w20000 -J -b -o${log_file} <<EOF
+    isql_sa_srs_connection_test="isql -X -Usa -S${repserver_name} -P${sa_srs_password} -w20000 -J -b <<EOF
     CONNECT
     GO
     SELECT dsname FROM rs_databases
@@ -79,22 +79,23 @@ else
     EOF
     "
     if eval "${isql_sa_srs_connection_test}" > /dev/null 2>&1; then
-        echo -e "Direct isql connection with user sa in SRS is working\n" >> "${log_file}"
+        custom_echo
+        echo -e "Direct isql connection with user sa in SRS is working" >> "${log_file}"
         # sa_srs_isql_case="isql"
-        sa_srs_sql_connection_string="isql -X -Usa -S${repserver_name} -P${sa_srs_password} -w20000 -J -b -o${log_file} <<EOF"
+        sa_srs_sql_connection_string="isql -X -Usa -S${repserver_name} -P${sa_srs_password} -w20000 -J -b <<EOF"
     else
         custom_echo
-        echo -e"Direct isql connection with user sa in SRS is not working\n" >> "${log_file}"
+        echo -e"Direct isql connection with user sa in SRS is not working" >> "${log_file}"
         exit 1
     fi
 fi
 
 #case $sa_srs_isql_case in
 #    "aseuserstore" )
-#        sa_srs_sql_connection_string="isql -X -k${sa_srs_aseuserstorekey} -w20000 -J -b -o${log_file} <<EOF"
+#        sa_srs_sql_connection_string="isql -X -k${sa_srs_aseuserstorekey} -w20000 -J -b <<EOF"
 #        ;;
 #    "isql" )
-#        sa_srs_sql_connection_string="isql -X -Usa -S${repserver_name} -w20000 -J -b -o${log_file} <<EOF"
+#        sa_srs_sql_connection_string="isql -X -Usa -S${repserver_name} -w20000 -J -b <<EOF"
 #        ;;
 #esac
 
@@ -104,34 +105,36 @@ sapsso_ase_key_list_command="aseuserstore list ${sapsso_ase_aseuserstorekey}"
 
 if eval "${sapsso_ase_key_list_command}" > /dev/null 2>&1; then
     custom_echo
-    echo -e "Testing the sql connection with aseuserstore key ${sapsso_ase_aseuserstorekey}\n" >> "${log_file}"
+    echo -e "Testing the sql connection with aseuserstore key ${sapsso_ase_aseuserstorekey}" >> "${log_file}"
 
-    aseuserstore_sapsso_ase_connection_test="isql -X -k${sapsso_ase_aseuserstorekey} -w20000 -J -b -o${log_file} <<EOF
+    aseuserstore_sapsso_ase_connection_test="isql -X -k${sapsso_ase_aseuserstorekey} -w20000 -J -b <<EOF
     SELECT host_name()
     GO
     exit
     EOF
     "
     if eval "${aseuserstore_sapsso_ase_connection_test}" > /dev/null 2>&1; then
-        echo -e "Connection with aseuserstore key ${sapsso_ase_aseuserstorekey} is working\n" >> "${log_file}"
-        sapsso_ase_sql_connection_string="isql -X -k${sapsso_ase_aseuserstorekey} -w20000 -J -b -o${log_file} <<EOF"
+        custom_echo
+        echo -e "Connection with aseuserstore key ${sapsso_ase_aseuserstorekey} is working" >> "${log_file}"
+        sapsso_ase_sql_connection_string="isql -X -k${sapsso_ase_aseuserstorekey} -w20000 -J -b <<EOF"
     fi
 else
     custom_echo
-    echo -e "The aseuserstore key ${sapsso_ase_aseuserstorekey} is not present. Trying isql connection with user sa directly\n"
+    echo -e "The aseuserstore key ${sapsso_ase_aseuserstorekey} is not present. Trying isql connection with user sa directly"
     sapsso_password=$(get_password "sapsso")
-    isql_sapsso_ase_connection_test="isql -X -Usapsso -S${SID} -P${sapsso_password} -w20000 -J -b -o${log_file} <<EOF
+    isql_sapsso_ase_connection_test="isql -X -Usapsso -S${SID} -P${sapsso_password} -w20000 -J -b  <<EOF
     SELECT host_name()
     GO
     exit
     EOF
     "
     if eval "${isql_sapsso_ase_connection_test}" > /dev/null 2>&1; then
-        echo -e "Direct isql connection with user sapsso in ASE is working\n" >> "${log_file}"
-        sapsso_ase_sql_connection_string="isql -X -Usapsso -S${SID} -P${sapsso_password} -w20000 -J -b -o${log_file} <<EOF"
+        custom_echo
+        echo -e "Direct isql connection with user sapsso in ASE is working" >> "${log_file}"
+        sapsso_ase_sql_connection_string="isql -X -Usapsso -S${SID} -P${sapsso_password} -w20000 -J -b <<EOF"
     else
         custom_echo
-        echo -e "Direct isql connection with user sapsso in ASE is not working\n" >> "${log_file}"
+        echo -e "Direct isql connection with user sapsso in ASE is not working" >> "${log_file}"
         exit 1
     fi
 fi
@@ -139,7 +142,7 @@ fi
 
 # Function that test the login of user <SID>_maint
 test_maint_login(){
-maint_isql_connection_test="isql -X -S${SID} -U${maint_username} -P${maint_username} -w20000 -J -b -o${log_file} <<EOF
+maint_isql_connection_test="isql -X -S${SID} -U${maint_username} -P${maint_username} -w20000 -J -b <<EOF
 SELECT host_name()
 GO
 EXIT
@@ -186,17 +189,17 @@ if  ! test_maint_login; then
     # Reset the password of user maint and unlock the user
     if eval "${isql_PasswordChange_Unlock_UserMaint}" > /dev/null 2>&1; then
         sql_output=$(eval "$isql_PasswordChange_Unlock_UserMaint")
-        echo -e "${sql_output}\n" >> "${log_file}"
         custom_echo
-        echo -e "Successfully changed the password and unlocked the user ${maint_username} in ASE\n" >> "${log_file}"
+        echo -e "${sql_output}\n" >> "${log_file}"
+        echo -e "Successfully changed the password and unlocked the user ${maint_username} in ASE" >> "${log_file}"
     else
         custom_echo
-        echo -e "Couldn't change the password nor unlock the user ${maint_username}\n" >> "${log_file}"
+        echo -e "Couldn't change the password nor unlock the user ${maint_username}" >> "${log_file}"
         exit 1
     fi
 else
     custom_echo
-    echo -e "The isql log-in of user ${maint_username} is working. No need to change it's password in ASE\n" >> "${log_file}"
+    echo -e "The isql log-in of user ${maint_username} is working. No need to change it's password in ASE" >> "${log_file}"
 fi
 
 # Change the password on the DSI connections in the SRS with the new <SID>_maint password
