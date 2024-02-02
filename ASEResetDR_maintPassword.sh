@@ -63,13 +63,13 @@ if eval "${sa_srs_key_list_command}" > /dev/null 2>&1; then
     if eval "${aseuserstore_sa_srs_connection_test}" > /dev/null 2>&1; then
         custom_echo
         echo -e "Connection with aseuserstore key ${sa_srs_aseuserstorekey} is working" >> "${log_file}"
-        sa_srs_sql_connection_string="isql -X -k${sa_srs_aseuserstorekey} -w20000 -J -b <<EOF"
+        sa_srs_sql_connection_string="isql -X -k${sa_srs_aseuserstorekey} -w20000 -J -b <<-EOF"
     fi
 else
     custom_echo
     echo -e "The aseuserstore key ${sa_srs_aseuserstorekey} is not present. Trying isql connection with user sa directly"
     sa_srs_password=$(get_password "sa")
-    isql_sa_srs_connection_test="isql -X -Usa -S${repserver_name} -P${sa_srs_password} -w20000 -J -b <<EOF
+    isql_sa_srs_connection_test="isql -X -Usa -S${repserver_name} -y/sybase/${SID}/DM/ -P${sa_srs_password} -w20000 -J -b <<EOF
     CONNECT
     GO
     SELECT dsname FROM rs_databases
@@ -80,7 +80,7 @@ else
     if eval "${isql_sa_srs_connection_test}" > /dev/null 2>&1; then
         custom_echo
         echo -e "Direct isql connection with user sa in SRS is working" >> "${log_file}"
-        sa_srs_sql_connection_string="isql -X -Usa -S${repserver_name} -P${sa_srs_password} -w20000 -J -b <<EOF"
+        sa_srs_sql_connection_string="isql -X -Usa -S${repserver_name} -y/sybase/${SID}/DM/ -P${sa_srs_password} -w20000 -J -b <<-EOF"
     else
         custom_echo
         echo -e"Direct isql connection with user sa in SRS is not working" >> "${log_file}"
@@ -129,23 +129,47 @@ else
 fi
 }
 
-# Function that test the login of user <SID>_maint
+# Function that tests the login of user <SID>_maint in ASE and SRS
 test_maint_login(){
-maint_isql_connection_test="isql -X -S${SID} -U${maint_username} -P${maint_username} -w20000 -J -b <<EOF
+local server_name="$1"
+case $server_name in
+    "${SID}" )
+        maint_isql_connection_test="isql -X -S${server_name} -U${maint_username} -P${maint_username} -w20000 -J -b <<EOF
 SELECT host_name()
 GO
 EXIT
 EOF
 "
-if eval "${maint_isql_connection_test}" > /dev/null 2>&1; then
-    custom_echo
-    echo -e "Connection with user ${maint_username} in ASE is working. No need to change it's password in ASE" >> "${log_file}"
-    return 0
-else
-    custom_echo
-    echo -e "Connection with user ${maint_username} in ASE is not working. Will proceed to change it's password and unlock it in ASE" >> "${log_file}"
-    return 1
-fi
+        if eval "${maint_isql_connection_test}" > /dev/null 2>&1; then
+            custom_echo
+            echo -e "Connection with user ${maint_username} in ASE is working. No need to change it's password in ASE" >> "${log_file}"
+            return 0
+        else
+            custom_echo
+            echo -e "Connection with user ${maint_username} in ASE is not working. Will proceed to change it's password and unlock it in ASE" >> "${log_file}"
+            return 1
+        fi
+        ;;
+    "${repserver_name}" )
+        maint_isql_connection_test="isql -X -S${server_name} -U${maint_username} -y/sybase/${SID}/DM/ -P${maint_username} -w20000 -J -b <<EOF
+CONNECT
+GO
+SELECT dsname FROM rs_databases
+GO
+exit
+EOF
+"
+        if eval "${maint_isql_connection_test}" > /dev/null 2>&1; then
+            custom_echo
+            echo -e "Connection with user ${maint_username} in SRS is working. No need to change it's password in SRS" >> "${log_file}"
+            return 0
+        else
+            custom_echo
+            echo -e "Connection with user ${maint_username} in SRS is not working. Will proceed to change it's password in SRS" >> "${log_file}"
+            return 1
+        fi
+        ;;
+esac
 }
 
 # Function that resets the password of maint user in ASE and on the DSI connections in SRS
@@ -154,11 +178,11 @@ check_user
 set_parameters
 build_isql_connection_string
 
-# Test the isql log-in of <SID>_maint user with the standard password and reset it if needed
-isql_PasswordChange_Unlock_UserMaint="${sapsso_ase_sql_connection_string}
+# Test the isql log-in of <SID>_maint user with the standard password and reset it if needed in ASE
+isql_PasswordChange_Unlock_UserMaint_ASE="${sapsso_ase_sql_connection_string}
 use master
 go
-print 'Resetting the password for user ${maint_username}'
+print 'Resetting the password for user ${maint_username} in ASE'
 go
 -- exec..sp_password ${sapsso_password}, ${maint_password} , ${maint_username}
 -- go
@@ -173,11 +197,10 @@ go
 exit
 EOF
 "
-
-if  ! test_maint_login; then
-    # Reset the password of user maint and unlock the user
-    if eval "${isql_PasswordChange_Unlock_UserMaint}" > /dev/null 2>&1; then
-        sql_output=$(eval "$isql_PasswordChange_Unlock_UserMaint")
+if  ! test_maint_login "${SID}"; then
+    # Reset the password of user maint in ASE and unlock the user
+    if eval "${isql_PasswordChange_Unlock_UserMaint_ASE}" > /dev/null 2>&1; then
+        sql_output=$(eval "$isql_PasswordChange_Unlock_UserMaint_ASE")
         custom_echo
         echo -e "${sql_output}\n" >> "${log_file}"
         echo -e "Successfully changed the password and unlocked the user ${maint_username} in ASE" >> "${log_file}"
@@ -191,6 +214,47 @@ else
     echo -e "The isql log-in of user ${maint_username} is working. No need to change it's password in ASE" >> "${log_file}"
 fi
 
+# Test the isql log-in of <SID>_maint user with the standard password and reset it if needed in SRS
+isql_PasswordChange_UserMaint_SRS="${sa_srs_sql_connection_string}
+-- alter user ${maint_username} set password ${maint_password}
+-- go
+exit
+EOF
+"
+if  ! test_maint_login "${repserver_name}"; then
+    # Reset the password of user <SID>_maint in SRS
+    if eval "${isql_PasswordChange_UserMaint_SRS}" > /dev/null 2>&1; then
+        sql_output=$(eval "$isql_PasswordChange_UserMaint_SRS")
+        custom_echo
+        echo -e "${sql_output}\n" >> "${log_file}"
+        echo -e "Successfully changed the password of user ${maint_username} in SRS" >> "${log_file}"
+    else
+        custom_echo
+        echo -e "Couldn't change the password of user ${maint_username} in SRS" >> "${log_file}"
+        exit 1
+    fi
+else
+    custom_echo
+    echo -e "The isql log-in of user ${maint_username} is working. No need to change it's password in SRS" >> "${log_file}"
+fi
+
+# Obtain the DSI names that needs to have their password altered with the new password of <SID>_maint user
+isql_AlterDSIPassword_SRS="${sa_srs_sql_connection_string} | awk '{print \$NF}'
+admin who_is_down
+go | grep -Ev 'EXEC|R2|R1|RSSD'
+exit
+EOF
+"
+if eval "$isql_AlterDSIPassword_SRS" > /dev/null 2>&1; then
+    dsi_to_alter=("$(eval "$isql_AlterDSIPassword_SRS")")
+    custom_echo
+    echo -e "The DSIs to be altered are:\n${dsi_to_alter[*]}\n" >> "${log_file}"
+else
+    custom_echo
+    echo -e "Couldn't obtain the names of the DSIs to be altered with the new password of <SID>_maint user"
+    exit 1
+fi
+
 # Change the password on the DSI connections in the SRS with the new <SID>_maint password
 #for dsi in "${dsi_to_alter[@]}"; do
 #    "${sa_srs_sql_connection_string}
@@ -202,9 +266,6 @@ fi
 #    go
 #EOF
 #done
-
-# alter user ${maint_username} set password ${maint_password}
-# go
 }
 
 ############ Main program starts here ############
