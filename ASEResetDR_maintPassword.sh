@@ -134,13 +134,13 @@ test_maint_login(){
 local server_name="$1"
 case $server_name in
     "${SID}" )
-        maint_isql_connection_test="isql -X -S${server_name} -U${maint_username} -P${maint_username} -w20000 -J -b <<EOF
+        maint_isql_ASE_connection_test="isql -X -S${server_name} -U${maint_username} -P${maint_username} -w20000 -J -b <<EOF
 SELECT host_name()
 GO
 EXIT
 EOF
 "
-        if eval "${maint_isql_connection_test}" > /dev/null 2>&1; then
+        if eval "${maint_isql_ASE_connection_test}" > /dev/null 2>&1; then
             custom_echo
             echo -e "Connection with user ${maint_username} in ASE is working. No need to change it's password in ASE" >> "${log_file}"
             return 0
@@ -151,7 +151,7 @@ EOF
         fi
         ;;
     "${repserver_name}" )
-        maint_isql_connection_test="isql -X -S${server_name} -U${maint_username} -y/sybase/${SID}/DM/ -P${maint_username} -w20000 -J -b <<EOF
+        maint_isql_SRS_connection_test="isql -X -S${server_name} -U${maint_username} -y/sybase/${SID}/DM/ -P${maint_username} -w20000 -J -b <<EOF
 CONNECT
 GO
 SELECT dsname FROM rs_databases
@@ -159,7 +159,7 @@ GO
 exit
 EOF
 "
-        if eval "${maint_isql_connection_test}" > /dev/null 2>&1; then
+        if eval "${maint_isql_SRS_connection_test}" > /dev/null 2>&1; then
             custom_echo
             echo -e "Connection with user ${maint_username} in SRS is working. No need to change it's password in SRS" >> "${log_file}"
             return 0
@@ -180,6 +180,8 @@ build_isql_connection_string
 
 # Test the isql log-in of <SID>_maint user with the standard password and reset it if needed in ASE
 isql_PasswordChange_Unlock_UserMaint_ASE="${sapsso_ase_sql_connection_string}
+set nocount on
+go
 use master
 go
 print 'Resetting the password for user ${maint_username} in ASE'
@@ -226,7 +228,7 @@ if  ! test_maint_login "${repserver_name}"; then
     if eval "${isql_PasswordChange_UserMaint_SRS}" > /dev/null 2>&1; then
         sql_output=$(eval "$isql_PasswordChange_UserMaint_SRS")
         custom_echo
-        echo -e "${sql_output}\n" >> "${log_file}"
+        echo -e "Resetting the password for user ${maint_username} in SRS ${sql_output}\n" >> "${log_file}"
         echo -e "Successfully changed the password of user ${maint_username} in SRS" >> "${log_file}"
     else
         custom_echo
@@ -270,14 +272,5 @@ fi
 
 ############ Main program starts here ############
 ############################################
-
-# Check if at least one parameter is provided to the script
-if [ "$#" -lt 1 ]; then
-    echo -e "--> The script must be called with at least 1 argument: $0 param1 [param2 ...]\n"
-    exit 1
-fi
-
-# Store the command-line arguments in an array
-dsi_to_alter=("$@")
 
 reset_maint_password
