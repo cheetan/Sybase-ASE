@@ -37,6 +37,7 @@ SID=$(printenv SYBASE | awk -F"/" '{print $3}')
 maint_username="${SID}_maint"
 log_file="/sybase/${SID}/saparch_1/OutputDR_maintPasswordReset_${DT}.log"
 repserver_name=$(ps -ef | grep repserver | grep -v grep | awk -F"-S" '{print substr($2, 1, 13)}')
+srsLogFile=$(ps -ef | grep repserver | grep -v grep | awk -F"-E" '{print substr($2, 1, 46)}')
 srs_site_name="$(echo "${repserver_name: -5}" | tr '[:upper:]' '[:lower:]')"
 maint_password=$(get_password "${maint_username}")
 }
@@ -172,6 +173,55 @@ EOF
 esac
 }
 
+# Function that checks the SRS log file for the error "Message: 4002, State 1, Severity 14 -- 'Login failed."
+check_srs_log(){
+# Get the current day, month and hour in digit format
+month=$(date +%m)
+day=$(date +%d)
+hour=$(date +%H)
+awk_search_4002LoginFailed="
+# Define the regex patterns for timestamp and string to search for (you can pass these as arguments)
+BEGIN {
+    timestamp_to_search_regex = \"^E.*2024\/${month}\/${day}.${hour}:[0-9]{2}:[0-9]{2}.*ERROR.#1028.DSI.*\"
+    string_to_search_regex = \"^.*[A-Za-z]+.*: 4002,.*Login failed.*\"
+}
+
+# If the line contains the timestamp, set a flag to start searching for the string
+\$0 ~ timestamp_to_search_regex {
+    timestamp_found = 1
+    first_line = \$0
+    next
+}
+
+# If the string is found after the timestamp, print both the lines to the output file
+timestamp_found && \$0 ~ string_to_search_regex {
+    print first_line >> output_file
+    print \$0 >> output_file
+    both_lines_found = 1
+    timestamp_found = 0
+}
+
+# Reset the flag if the timestamp is not followed by the string
+!(\$0 ~ string_to_search_regex) && timestamp_found {
+    timestamp_found = 0
+}
+
+# At the end, if both lines were found, set the exit code to 1
+END {
+    if (both_lines_found) {
+        exit_code = 1
+        exit exit_code
+    }
+    else {
+        exit_code = 0
+        exit exit_code
+    }
+}
+"
+exit_code=$(echo "${awk_search_4002LoginFailed}" | awk -v month="${month}" -v day="${day}" -v hour="${hour}" -v output_file="${log_file}" -f - "${srsLogFile}")
+echo "${exit_code}"
+}
+
 # Function that resets the password of maint user in ASE and on the DSI connections in SRS
 reset_maint_password(){
 check_user
@@ -278,6 +328,15 @@ EOF"
         exit 1
     fi
 done
+
+if check_srs_log; then
+    custom_echo
+    echo -e "DSI connections could not be resumed after the password reset. Please check the SRS log for further details" >> "${log_file}"
+    exit 0
+else
+    custom_echo
+    echo -e "DSI connections successfuly resumed after the password reset" >> "${log_file}"
+fi
 }
 
 ############ Main program starts here ############
