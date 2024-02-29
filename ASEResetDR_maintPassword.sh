@@ -258,16 +258,26 @@ else
 fi
 
 # Change the password on the DSI connections in the SRS with the new <SID>_maint password
-#for dsi in "${dsi_to_alter[@]}"; do
-#    "${sa_srs_sql_connection_string}
-#    suspend connection to ${dsi}
-#    go
-#    alter connection to ${dsi} set password ${maint_password}
-#    go
-#    resume connection to ${dsi}
-#    go
-#EOF
-#done
+for dsi in "${dsi_to_alter[@]}"; do
+    isqlAlterDSIResetPassword="${sa_srs_sql_connection_string}
+suspend connection to ${dsi}
+go
+alter connection to ${dsi} set password ${maint_password}
+go
+resume connection to ${dsi}
+go
+EOF"
+    if eval "$isqlAlterDSIResetPassword" > /dev/null 2>&1; then
+        sql_output=$(eval "$isqlAlterDSIResetPassword")
+        custom_echo
+        echo -e "${sql_output}\n" >> "${log_file}"
+        echo -e "Successfully reset the password for the DSI ${dsi} in SRS" >> "${log_file}"
+    else
+        custom_echo
+        echo -e "Couldn't reset the password for the DSI ${dsi} in SRS" >> "${log_file}"
+        exit 1
+    fi
+done
 }
 
 ############ Main program starts here ############
